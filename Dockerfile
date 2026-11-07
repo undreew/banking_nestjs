@@ -7,6 +7,7 @@ COPY --chown=app package*.json .
 USER app
 RUN npm install
 COPY --chown=app . .
+RUN npx prisma generate --config prisma7.config.ts
 RUN chmod +x docker-entrypoint.sh
 ENV PORT=3000
 EXPOSE 3000
