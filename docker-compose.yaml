@@ -1,0 +1,28 @@
+services:
+  server:
+    build: .
+    ports:
+      - 3000:3000
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: mysql://root:pass1234@db:3306/banking_nestjs
+      DATABASE_USER: root
+      DATABASE_PASSWORD: pass1234
+      DATABASE_NAME: banking_nestjs
+      DATABASE_HOST: db
+      DATABASE_PORT: 3306
+
+  db:
+    image: mysql:9.7.4
+    ports:
+      - 8080:3306
+    volumes:
+      - mysql-data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: pass1234
+      MYSQL_DATABASE: banking_nestjs
+
+volumes:
+  mysql-data:
+
