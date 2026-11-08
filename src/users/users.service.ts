@@ -20,7 +20,7 @@ export class UsersService {
   }
 
   async getOneUser(id: string) {
-    const user = await this.prismaService.user.findFirstOrThrow({where: {id}});
+    const user = await this.prismaService.user.findUnique({where: {id}});
     if (!user) throw new NotFoundException("User not found");
     return new User(user);
   }
@@ -62,5 +62,6 @@ export class UsersService {
     await this.prismaService.user.delete({
       where: {id},
     });
+    this.logger.log(AUDIT_ACTIONS.USER_DELETE, {id});
   }
 }

@@ -20,10 +20,15 @@ model User {
   password  String   @db.VarChar(255)
   firstName String   @map("first_name") @db.VarChar(100)
   lastName  String   @map("last_name") @db.VarChar(100)
-  role      String   @db.VarChar(20)
+  role      Role     @default(USER)
   enabled   Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
 
   @@map("users")
+}
+
+enum Role {
+  USER
+  ADMIN
 }
