@@ -1,10 +1,21 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { UsersService } from './users.service.js';
-import { API_PATHS } from "../constants/api-paths.js";
+import { API_PATHS } from '../constants/api-paths.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
-import { UpdateUserRoleDto } from "./dto/update-user-role.dto.js";
+import { UpdateUserRoleDto } from './dto/update-user-role.dto.js';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto.js';
-import { UpdateUserDetailsDto } from "./dto/update-user-details.dto.js";
+import { UpdateUserDetailsDto } from './dto/update-user-details.dto.js';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+} from '@nestjs/common';
 
 @Controller(API_PATHS.USER)
 export class UsersController {
@@ -26,17 +37,26 @@ export class UsersController {
   }
 
   @Patch(':id/role')
-  updateRole(@Param("id", ParseUUIDPipe) id: string, @Body() payload: UpdateUserRoleDto) {
+  updateRole(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() payload: UpdateUserRoleDto,
+  ) {
     return this.usersService.updateRole(id, payload);
   }
 
   @Patch(':id/status')
-  updateStatus(@Param('id', ParseUUIDPipe) id: string, @Body() payload: UpdateUserStatusDto) {
+  updateStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() payload: UpdateUserStatusDto,
+  ) {
     return this.usersService.updateStatus(id, payload);
   }
 
-  @Patch(":id/details")
-  updateUserProfile(@Param("id", ParseUUIDPipe) id: string, @Body() payload: UpdateUserDetailsDto) {
+  @Patch(':id/details')
+  updateUserProfile(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() payload: UpdateUserDetailsDto,
+  ) {
     return this.usersService.updateUserProfile(id, payload);
   }
 

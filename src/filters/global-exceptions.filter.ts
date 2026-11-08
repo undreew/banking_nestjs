@@ -1,7 +1,14 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from "@nestjs/common";
-import { HttpAdapterHost } from "@nestjs/core";
-import { mapPrismaError } from "../utils/prisma-error.util.js";
-import { PrismaClientKnownRequestError } from "@prisma/client/runtime/client";
+import { HttpAdapterHost } from '@nestjs/core';
+import { mapPrismaError } from '../utils/prisma-error.util.js';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
+import {
+  ArgumentsHost,
+  Catch,
+  ExceptionFilter,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 
 interface ErrorResponse {
   path: string;
@@ -15,18 +22,17 @@ interface ErrorResponse {
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
 
-  constructor(private readonly httpAdapterHost: HttpAdapterHost) {
-  }
+  constructor(private readonly httpAdapterHost: HttpAdapterHost) {}
 
   catch(exception: any, host: ArgumentsHost) {
-    const {httpAdapter} = this.httpAdapterHost;
+    const { httpAdapter } = this.httpAdapterHost;
 
     const ctx = host.switchToHttp();
 
     const responseBody: ErrorResponse = {
       path: httpAdapter.getRequestUrl(ctx.getRequest()),
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-      message: "Something went wrong",
+      message: 'Something went wrong',
       timestamp: new Date().toISOString(),
       fieldErrors: null,
     };
@@ -36,15 +42,21 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       const responseMessage = getResponseMessage(errorResponse);
 
       responseBody.statusCode = exception.getStatus();
-      responseBody.fieldErrors = Array.isArray(responseMessage) ? responseMessage : null;
-      responseBody.message = Array.isArray(responseMessage) ? 'Validation failed' : exception.message;
+      responseBody.fieldErrors = Array.isArray(responseMessage)
+        ? responseMessage
+        : null;
+      responseBody.message = Array.isArray(responseMessage)
+        ? 'Validation failed'
+        : exception.message;
     } else if (exception instanceof PrismaClientKnownRequestError) {
-      const {statusCode, message} = mapPrismaError(exception);
+      const { statusCode, message } = mapPrismaError(exception);
       responseBody.statusCode = statusCode;
       responseBody.message = message;
     } else {
-      this.logger.error(exception instanceof Error ? exception.stack : exception);
-      responseBody.message = "Internal Server Error";
+      this.logger.error(
+        exception instanceof Error ? exception.stack : exception,
+      );
+      responseBody.message = 'Internal Server Error';
     }
 
     httpAdapter.reply(ctx.getResponse(), responseBody, responseBody.statusCode);
