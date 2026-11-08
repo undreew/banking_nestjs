@@ -1,19 +1,32 @@
-import { Injectable } from '@nestjs/common';
+import { User } from './entities/user.entity.js';
+import { Injectable, Logger } from '@nestjs/common';
+import { AUDIT_ACTIONS } from "../constants/audit.js";
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { PrismaService } from "../prisma/prisma.service.js";
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(private readonly prismaService: PrismaService) {
   }
 
-  create(createUserDto: CreateUserDto) {
-    return 'This action adds a new user';
+  async create(createUserDto: CreateUserDto): Promise<User> {
+    const createdUser = await this.prismaService.user.create({data: createUserDto});
+
+    this.logger.log(AUDIT_ACTIONS.USER_CREATE, {
+      id: createdUser.id,
+      lastName: createdUser.lastName,
+      firstName: createdUser.firstName,
+    });
+
+    return new User(createdUser);
   }
 
-  async findAll() {
-    return await this.prismaService.user.findMany();
+  async findAll(): Promise<User[]> {
+    const users = await this.prismaService.user.findMany();
+    return users.map((user) => new User(user));
   }
 
   findOne(id: number) {
