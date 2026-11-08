@@ -35,9 +35,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       const errorResponse = exception.getResponse();
       const responseMessage = getResponseMessage(errorResponse);
 
-      responseBody.message = exception.message;
       responseBody.statusCode = exception.getStatus();
       responseBody.fieldErrors = Array.isArray(responseMessage) ? responseMessage : null;
+      responseBody.message = Array.isArray(responseMessage) ? 'Validation failed' : exception.message;
     } else if (exception instanceof PrismaClientKnownRequestError) {
       const {statusCode, message} = mapPrismaError(exception);
       responseBody.statusCode = statusCode;
