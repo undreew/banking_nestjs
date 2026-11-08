@@ -1,35 +1,47 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
-import { User } from './entities/user.entity.js';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { UsersService } from './users.service.js';
+import { API_PATHS } from "../constants/api-paths.js";
 import { CreateUserDto } from './dto/create-user.dto.js';
-import { UpdateUserDto } from './dto/update-user.dto.js';
+import { UpdateUserRoleDto } from "./dto/update-user-role.dto.js";
+import { UpdateUserStatusDto } from './dto/update-user-status.dto.js';
+import { UpdateUserDetailsDto } from "./dto/update-user-details.dto.js";
 
-@Controller('users')
+@Controller(API_PATHS.USER)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Post()
-  create(@Body() createUserDto: CreateUserDto): Promise<User> {
-    return this.usersService.create(createUserDto);
-  }
-
   @Get()
-  findAll(): Promise<User[]> {
-    return this.usersService.findAll();
+  getUsers() {
+    return this.usersService.getUsers();
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.usersService.findOne(+id);
+  getOneUser(@Param('id', ParseUUIDPipe) id: string) {
+    return this.usersService.getOneUser(id);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.usersService.update(+id, updateUserDto);
+  @Post()
+  create(@Body() createUserDto: CreateUserDto) {
+    return this.usersService.create(createUserDto);
+  }
+
+  @Patch(':id/role')
+  updateRole(@Param("id", ParseUUIDPipe) id: string, @Body() payload: UpdateUserRoleDto) {
+    return this.usersService.updateRole(id, payload);
+  }
+
+  @Patch(':id/status')
+  updateStatus(@Param('id', ParseUUIDPipe) id: string, @Body() payload: UpdateUserStatusDto) {
+    return this.usersService.updateStatus(id, payload);
+  }
+
+  @Patch(":id/details")
+  updateUserProfile(@Param("id", ParseUUIDPipe) id: string, @Body() payload: UpdateUserDetailsDto) {
+    return this.usersService.updateUserProfile(id, payload);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.usersService.remove(+id);
+  deleteUser(@Param('id', ParseUUIDPipe) id: string) {
+    return this.usersService.deleteUser(id);
   }
 }
