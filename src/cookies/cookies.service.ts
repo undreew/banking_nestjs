@@ -14,6 +14,8 @@ interface CookieBuild {
   duration: number;
 }
 
+interface CookieClear extends Omit<CookieBuild, 'value' | 'duration'> {}
+
 @Injectable()
 export class CookiesService {
   private readonly environment: string;
@@ -59,9 +61,25 @@ export class CookiesService {
     this.buildCookie({
       res,
       value,
-      path: API_PATHS.AUTH,
+      path: API_PATHS.AUTH.REFRESH,
       name: this.refreshCookieName,
       duration: this.convertTtl(this.refreshTokenTtl),
+    });
+  }
+
+  public expireAccessCookie(res: Response) {
+    this.clearCookie({
+      res,
+      path: API_PATHS.ROOT,
+      name: this.accessCookieName,
+    });
+  }
+
+  public expireRefreshCookie(res: Response) {
+    this.clearCookie({
+      res,
+      path: API_PATHS.AUTH.REFRESH,
+      name: this.refreshCookieName,
     });
   }
 
@@ -72,6 +90,18 @@ export class CookiesService {
       path,
       httpOnly: true,
       maxAge: duration,
+      sameSite: 'strict',
+      secure: this.environment === 'production',
+    });
+  }
+
+  private clearCookie(payload: CookieClear) {
+    const { name, path, res } = payload;
+
+    this.host.httpAdapter.clearCookie(res, name, {
+      path,
+      maxAge: 0,
+      httpOnly: true,
       sameSite: 'strict',
       secure: this.environment === 'production',
     });

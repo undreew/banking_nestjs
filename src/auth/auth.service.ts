@@ -6,10 +6,10 @@ import { User } from '../users/entities/user.entity.js';
 import { TokenService } from '../token/token.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
-  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 
 @Injectable()
@@ -51,19 +51,16 @@ export class AuthService {
     });
 
     if (!registeredUser) {
-      throw new NotFoundException('Check your email or password');
-    }
-    if (!registeredUser.enabled) {
-      throw new ConflictException('User is disabled');
+      throw new UnauthorizedException('Invalid credentials');
     }
 
-    const isMatch = this.encoder.decrypt(
+    const isMatch = await this.encoder.decrypt(
       payload.password,
       registeredUser.password,
     );
 
-    if (!isMatch) {
-      throw new ConflictException('Check your email or password');
+    if (!isMatch || !registeredUser.enabled) {
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     this.logger.log(AUDIT_ACTIONS.AUTH_LOGIN, { id: registeredUser.id });

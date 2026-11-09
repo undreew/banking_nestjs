@@ -1,5 +1,11 @@
 export const API_PATHS = {
   ROOT: '/',
   USER: '/users',
-  AUTH: '/auth',
+  AUTH: {
+    ROOT: '/auth',
+    LOGIN: '/auth/login',
+    LOGOUT_: '/auth/logout',
+    REFRESH: '/auth/refresh',
+    REGISTER: '/auth/register',
+  },
 };

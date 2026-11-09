@@ -12,6 +12,13 @@ services:
       DATABASE_NAME: banking_nestjs
       DATABASE_HOST: db
       DATABASE_PORT: 3306
+      ENVIRONMENT: dev
+      ACCESS_TOKEN_SECRET: H6+xslAviLQRaRHGil7vhKUJGzhIMpkF1XcWSvmQZ5c=
+      REFRESH_TOKEN_SECRET: lNDk8A3Cm6/cjD80vZgbz1mr8b1P3MfwMHGZrDZObQc=
+      ACCESS_TOKEN_TTL: 15m
+      REFRESH_TOKEN_TTL: 7d
+      ACCESS_COOKIE: banking_access
+      REFRESH_COOKIE: banking_refresh
 
   db:
     image: mysql:9.7.4

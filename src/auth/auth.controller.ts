@@ -18,7 +18,7 @@ import {
   Res,
 } from '@nestjs/common';
 
-@Controller(API_PATHS.AUTH)
+@Controller(API_PATHS.AUTH.ROOT)
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
@@ -55,5 +55,12 @@ export class AuthController {
   @Post('refresh')
   refreshToken(@Cookies() cookies: Record<string, string>) {
     return 'Refreshing access token...';
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  logout(@Res({ passthrough: true }) res: Response) {
+    this.cookieService.expireAccessCookie(res);
+    this.cookieService.expireRefreshCookie(res);
   }
 }
