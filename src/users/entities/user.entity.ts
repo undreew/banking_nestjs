@@ -1,4 +1,5 @@
 import { Exclude } from 'class-transformer';
+import { Role } from '../../generated/prisma/enums.js';
 
 export class User {
   id: string;
@@ -9,7 +10,7 @@ export class User {
 
   firstName: string;
   lastName: string;
-  role: string;
+  role: Role;
   enabled: boolean;
   createdAt: Date;
   updatedAt: Date;

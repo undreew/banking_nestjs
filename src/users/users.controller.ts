@@ -1,5 +1,7 @@
 import { UsersService } from './users.service.js';
+import { Role } from '../generated/prisma/enums.js';
 import { API_PATHS } from '../constants/api-paths.js';
+import { Roles } from '../decorators/role.decorator.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto.js';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto.js';
@@ -17,6 +19,7 @@ import {
   Post,
 } from '@nestjs/common';
 
+@Roles([Role.ADMIN])
 @Controller(API_PATHS.USER)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
