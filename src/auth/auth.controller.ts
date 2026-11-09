@@ -52,11 +52,13 @@ export class AuthController {
     return body;
   }
 
+  @Public()
   @Post('refresh')
   refreshToken(@Cookies() cookies: Record<string, string>) {
     return 'Refreshing access token...';
   }
 
+  @Public()
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   logout(@Res({ passthrough: true }) res: Response) {

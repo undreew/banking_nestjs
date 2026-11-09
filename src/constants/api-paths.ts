@@ -4,7 +4,7 @@ export const API_PATHS = {
   AUTH: {
     ROOT: '/auth',
     LOGIN: '/auth/login',
-    LOGOUT_: '/auth/logout',
+    LOGOUT: '/auth/logout',
     REFRESH: '/auth/refresh',
     REGISTER: '/auth/register',
   },
