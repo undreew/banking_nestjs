@@ -1,9 +1,11 @@
 import { Role } from '../generated/prisma/enums.js';
-import { Controller, Get, Post } from '@nestjs/common';
+import { API_PATHS } from '../constants/api-paths.js';
 import { Roles } from '../decorators/role.decorator.js';
 import { TransactionsService } from './transactions.service.js';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { ReverseTransactionDto } from './dto/reverse-transaction.dto.js';
 
-@Controller('transactions')
+@Controller(API_PATHS.TRANSACTION.ROOT)
 export class TransactionsController {
   constructor(private readonly transactionsService: TransactionsService) {}
 
@@ -13,9 +15,12 @@ export class TransactionsController {
     return this.transactionsService.getAllTransactions();
   }
 
-  @Post()
-  @Roles([Role.USER])
-  reverseTransaction() {
-    return this.transactionsService.reverseTransaction();
+  @Post(':id/reverse')
+  @Roles([Role.ADMIN])
+  reverseTransaction(
+    @Param('id') id: string,
+    @Body() payload: ReverseTransactionDto,
+  ) {
+    return this.transactionsService.reverseTransaction(id, payload);
   }
 }

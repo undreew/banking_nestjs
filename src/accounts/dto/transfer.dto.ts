@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsNumber, IsPositive, IsString } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsPositive,
+  IsString,
+} from 'class-validator';
 
 export class TransferDto {
   @IsString()
@@ -13,4 +19,8 @@ export class TransferDto {
   @IsNotEmpty()
   @IsPositive()
   amount: number;
+
+  @IsOptional()
+  @IsString()
+  description: string;
 }

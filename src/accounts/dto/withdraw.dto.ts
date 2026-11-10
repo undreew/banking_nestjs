@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsNumber, IsPositive, IsString } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsPositive,
+  IsString,
+} from 'class-validator';
 
 export class WithdrawDto {
   @IsNotEmpty()
@@ -9,4 +15,8 @@ export class WithdrawDto {
   @IsNotEmpty()
   @IsPositive()
   amount: number;
+
+  @IsOptional()
+  @IsString()
+  description: string;
 }

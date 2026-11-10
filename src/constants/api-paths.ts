@@ -12,4 +12,7 @@ export const API_PATHS = {
     ROOT: '/accounts',
     CREATE: '/accounts/create',
   },
+  TRANSACTION: {
+    ROOT: '/transactions',
+  },
 };

@@ -12,7 +12,6 @@ export class AccountsService {
 
   constructor(
     private readonly db: PrismaService,
-    private readonly transactionService: TransactionsService,
     private readonly accountNumGenerator: AccountNumberGeneratorService,
   ) {}
 

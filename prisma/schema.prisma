@@ -41,7 +41,40 @@ model Account {
   createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamp(0)
 
+  sourceTransactions      Transaction[] @relation("SourceAccountTransactions")
+  destinationTransactions Transaction[] @relation("DestinationAccountTransactions")
+
   @@map("accounts")
+}
+
+model Transaction {
+  id                      String            @id @default(uuid()) @db.Char(36)
+  sourceAccountId         String?           @map("source_account_id") @db.Char(36)
+  sourceAccount           Account?          @relation("SourceAccountTransactions", fields: [sourceAccountId], references: [id], map: "fk_transactions_source_account")
+  destinationAccountId    String?           @map("destination_account_id") @db.Char(36)
+  destinationAccount      Account?          @relation("DestinationAccountTransactions", fields: [destinationAccountId], references: [id], map: "fk_transactions_destination_account")
+  type                    TransactionType
+  amount                  Decimal           @db.Decimal(19, 4)
+  status                  TransactionStatus @default(COMPLETED)
+  idempotencyKey          String?           @unique(map: "uk_transactions_idempotency_key") @map("idempotency_key") @db.VarChar(100)
+  reversalOfTransactionId String?           @map("reversal_of_transaction_id") @db.Char(36)
+  reversalOf              Transaction?      @relation("TransactionReversal", fields: [reversalOfTransactionId], references: [id], map: "fk_transactions_reversal_of")
+  reversals               Transaction[]     @relation("TransactionReversal")
+  description             String?           @db.VarChar(500)
+  createdAt               DateTime          @default(now()) @map("created_at") @db.Timestamp(0)
+
+  @@map("transactions")
+}
+
+enum TransactionStatus {
+  COMPLETED
+  REVERSED
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER
 }
 
 enum AccountStatus {
