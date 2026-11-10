@@ -25,4 +25,22 @@ export class AccountsController {
   ) {
     return this.accountsService.createAccount(actor.sub, payload);
   }
+
+  @Post('deposit')
+  @Roles([Role.USER])
+  deposit() {
+    return this.accountsService.deposit();
+  }
+
+  @Post('withdraw')
+  @Roles([Role.USER])
+  withdraw() {
+    return this.accountsService.withdraw();
+  }
+
+  @Post('transfer')
+  @Roles([Role.USER])
+  transfer() {
+    return this.accountsService.transfer();
+  }
 }

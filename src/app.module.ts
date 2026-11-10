@@ -20,6 +20,7 @@ import {
   NestModule,
   ValidationPipe,
 } from '@nestjs/common';
+import { TransactionsModule } from './transactions/transactions.module.js';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import {
     TokenModule,
     CookiesModule,
     AccountsModule,
+    TransactionsModule,
   ],
   controllers: [AppController],
   providers: [

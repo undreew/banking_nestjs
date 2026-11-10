@@ -3,6 +3,7 @@ import { AUDIT_ACTIONS } from '../constants/audit.js';
 import { Account } from './entities/account.entity.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateAccountDto } from './dto/create-account.dto.js';
+import { TransactionsService } from '../transactions/transactions.service.js';
 import { AccountNumberGeneratorService } from './account-number-generator.service.js';
 
 @Injectable()
@@ -11,6 +12,7 @@ export class AccountsService {
 
   constructor(
     private readonly db: PrismaService,
+    private readonly transactionService: TransactionsService,
     private readonly accountNumGenerator: AccountNumberGeneratorService,
   ) {}
 
@@ -32,5 +34,17 @@ export class AccountsService {
     });
     this.logger.log(AUDIT_ACTIONS.ACCOUNT_CREATE, { id: account.id });
     return new Account(account);
+  }
+
+  async deposit() {
+    return await this.transactionService.deposit();
+  }
+
+  async withdraw() {
+    return await this.transactionService.withdraw();
+  }
+
+  async transfer() {
+    return await this.transactionService.transfer();
   }
 }
