@@ -8,4 +8,8 @@ export const API_PATHS = {
     REFRESH: '/auth/refresh',
     REGISTER: '/auth/register',
   },
+  ACCOUNT: {
+    ROOT: '/accounts',
+    CREATE: '/accounts/create',
+  },
 };
