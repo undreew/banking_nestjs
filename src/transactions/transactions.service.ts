@@ -6,6 +6,8 @@ import { WithdrawDto } from '../accounts/dto/withdraw.dto.js';
 import { Transaction } from './entities/transaction.entity.js';
 import { Account } from '../accounts/entities/account.entity.js';
 import { ReverseTransactionDto } from './dto/reverse-transaction.dto.js';
+import { GetTransactionsQueryDto } from './dto/get-transactions-query.dto.js';
+import type * as Prisma from '../generated/prisma/internal/prismaNamespace.js';
 import {
   Decimal,
   type TransactionClient,
@@ -20,6 +22,7 @@ import {
   ConflictException,
   Injectable,
   Logger,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 
@@ -38,8 +41,86 @@ export class TransactionsService {
 
   constructor(private readonly db: PrismaService) {}
 
-  async getAllTransactions() {
-    return 'Fetching all transactions...';
+  async getAllTransactions(userId: string, query: GetTransactionsQueryDto) {
+    const {
+      accountNumber,
+      type,
+      status,
+      fromDate,
+      toDate,
+      minAmount,
+      maxAmount,
+      sortBy,
+      sortOrder,
+      page,
+      limit,
+    } = query;
+
+    const ownershipFilter = accountNumber
+      ? await this.resolveOwnedAccountFilter(userId, accountNumber)
+      : {
+          OR: [
+            { sourceAccount: { userId } },
+            { destinationAccount: { userId } },
+          ],
+        };
+
+    const where: Prisma.TransactionWhereInput = {
+      ...ownershipFilter,
+      ...(type && { type }),
+      ...(status && { status }),
+      ...((fromDate || toDate) && {
+        createdAt: {
+          ...(fromDate && { gte: new Date(fromDate) }),
+          ...(toDate && { lte: new Date(toDate) }),
+        },
+      }),
+      ...((minAmount !== undefined || maxAmount !== undefined) && {
+        amount: {
+          ...(minAmount !== undefined && { gte: minAmount }),
+          ...(maxAmount !== undefined && { lte: maxAmount }),
+        },
+      }),
+    };
+
+    const [transactions, total] = await Promise.all([
+      this.db.transaction.findMany({
+        where,
+        orderBy: { [sortBy]: sortOrder },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.db.transaction.count({ where }),
+    ]);
+
+    return {
+      data: transactions.map((transaction) => new Transaction(transaction)),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  private async resolveOwnedAccountFilter(
+    userId: string,
+    accountNumber: string,
+  ): Promise<Prisma.TransactionWhereInput> {
+    const account = await this.db.account.findUnique({
+      where: { accountNumber },
+    });
+
+    if (!account) {
+      throw new NotFoundException('Account not found');
+    }
+
+    await this.checkOwnership(userId, account.userId);
+
+    return {
+      OR: [{ sourceAccountId: account.id }, { destinationAccountId: account.id }],
+    };
   }
 
   async reverseTransaction(
