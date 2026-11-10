@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  MaxLength,
 } from 'class-validator';
 
 export class TransferDto {
@@ -22,5 +23,6 @@ export class TransferDto {
 
   @IsOptional()
   @IsString()
-  description: string;
+  @MaxLength(500)
+  description?: string;
 }

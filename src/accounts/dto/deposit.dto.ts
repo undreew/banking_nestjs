@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  MaxLength,
 } from 'class-validator';
 
 export class DepositDto {
@@ -18,5 +19,6 @@ export class DepositDto {
 
   @IsOptional()
   @IsString()
-  description: string;
+  @MaxLength(500)
+  description?: string;
 }

@@ -6,7 +6,10 @@ import { WithdrawDto } from '../accounts/dto/withdraw.dto.js';
 import { Transaction } from './entities/transaction.entity.js';
 import { Account } from '../accounts/entities/account.entity.js';
 import { ReverseTransactionDto } from './dto/reverse-transaction.dto.js';
-import { Decimal } from '../generated/prisma/internal/prismaNamespace.js';
+import {
+  Decimal,
+  type TransactionClient,
+} from '../generated/prisma/internal/prismaNamespace.js';
 import {
   AccountStatus,
   TransactionStatus,
@@ -17,7 +20,6 @@ import {
   ConflictException,
   Injectable,
   Logger,
-  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 
@@ -50,10 +52,6 @@ export class TransactionsService {
       where: { id: transactionId },
     });
 
-    if (!transaction) {
-      throw new NotFoundException('Transaction not found');
-    }
-
     if (transaction.status === TransactionStatus.REVERSED) {
       throw new BadRequestException('Invalid transaction status');
     }
@@ -70,39 +68,50 @@ export class TransactionsService {
       where: { id: transaction.destinationAccountId! },
     });
 
+    if (
+      sourceAccount.status !== AccountStatus.ACTIVE ||
+      destinationAccount.status !== AccountStatus.ACTIVE
+    ) {
+      throw new ConflictException(`Account is not active`);
+    }
+
     if (destinationAccount.balance.comparedTo(transaction.amount) < 0) {
       throw new ConflictException('Insufficient destination account balance');
     }
 
-    await this.db.account.update({
-      where: { id: sourceAccount.id },
-      data: {
-        balance: sourceAccount.balance.add(transaction.amount),
-      },
-    });
+    const { updatedOldTransaction, newTransaction } =
+      await this.db.$transaction(async (tx) => {
+        await tx.account.update({
+          where: { id: sourceAccount.id },
+          data: { balance: sourceAccount.balance.add(transaction.amount) },
+        });
 
-    await this.db.account.update({
-      where: { id: destinationAccount.id },
-      data: {
-        balance: destinationAccount.balance.minus(transaction.amount),
-      },
-    });
+        await tx.account.update({
+          where: { id: destinationAccount.id },
+          data: {
+            balance: destinationAccount.balance.minus(transaction.amount),
+          },
+        });
 
-    const updatedOldTransaction = await this.db.transaction.update({
-      where: { id: transaction.id },
-      data: {
-        status: TransactionStatus.REVERSED,
-      },
-    });
+        const updatedOldTransaction = await tx.transaction.update({
+          where: { id: transaction.id },
+          data: { status: TransactionStatus.REVERSED },
+        });
 
-    const newTransaction = await this.createTransaction({
-      description: reason,
-      amount: transaction.amount,
-      type: TransactionType.TRANSFER,
-      reversalOfTransactionId: transaction.id,
-      sourceAccountId: transaction.sourceAccountId!,
-      destinationAccountId: transaction.destinationAccountId!,
-    });
+        const newTransaction = await this.createTransaction(
+          {
+            description: reason,
+            amount: transaction.amount,
+            type: TransactionType.TRANSFER,
+            reversalOfTransactionId: transaction.id,
+            sourceAccountId: transaction.destinationAccountId!,
+            destinationAccountId: transaction.sourceAccountId!,
+          },
+          tx,
+        );
+
+        return { updatedOldTransaction, newTransaction };
+      });
 
     this.logger.log(AUDIT_ACTIONS.TRANSACTION_REVERSE, {
       id: newTransaction.id,
@@ -127,24 +136,29 @@ export class TransactionsService {
       throw new ConflictException('Account is not active');
     }
 
-    const updatedAccount = await this.db.account.update({
-      where: {
-        accountNumber,
+    const { updatedAccount, transaction } = await this.db.$transaction(
+      async (tx) => {
+        const updatedAccount = await tx.account.update({
+          where: { accountNumber },
+          data: { balance: account.balance.add(amount) },
+        });
+
+        const transaction = await this.createTransaction(
+          {
+            amount,
+            description,
+            type: TransactionType.DEPOSIT,
+            destinationAccountId: account.id,
+          },
+          tx,
+        );
+
+        return { updatedAccount, transaction };
       },
-      data: {
-        balance: account.balance.add(amount),
-      },
-    });
+    );
 
     this.logger.log(AUDIT_ACTIONS.TRANSACTION_DEPOSIT, {
       id: updatedAccount.id,
-    });
-
-    const transaction = await this.createTransaction({
-      amount,
-      description,
-      type: TransactionType.DEPOSIT,
-      destinationAccountId: account.id,
     });
 
     return {
@@ -170,22 +184,29 @@ export class TransactionsService {
       throw new ConflictException('Insufficient balance');
     }
 
-    const updatedAccount = await this.db.account.update({
-      where: { accountNumber },
-      data: {
-        balance: account.balance.minus(amount),
+    const { updatedAccount, transaction } = await this.db.$transaction(
+      async (tx) => {
+        const updatedAccount = await tx.account.update({
+          where: { accountNumber },
+          data: { balance: account.balance.minus(amount) },
+        });
+
+        const transaction = await this.createTransaction(
+          {
+            amount,
+            description,
+            sourceAccountId: account.id,
+            type: TransactionType.WITHDRAWAL,
+          },
+          tx,
+        );
+
+        return { updatedAccount, transaction };
       },
-    });
+    );
 
     this.logger.log(AUDIT_ACTIONS.TRANSACTION_WITHDRAW, {
       id: updatedAccount.id,
-    });
-
-    const transaction = await this.createTransaction({
-      amount,
-      description,
-      sourceAccountId: account.id,
-      type: TransactionType.WITHDRAWAL,
     });
 
     return {
@@ -227,28 +248,36 @@ export class TransactionsService {
       throw new ConflictException('Insufficient balance');
     }
 
-    const sourceAccountUpdated = await this.db.account.update({
-      where: { accountNumber: sourceAccountNumber },
-      data: { balance: sourceAccount.balance.minus(amount) },
-    });
+    const { sourceAccountUpdated, destinationAccountUpdated, transaction } =
+      await this.db.$transaction(async (tx) => {
+        const sourceAccountUpdated = await tx.account.update({
+          where: { accountNumber: sourceAccountNumber },
+          data: { balance: sourceAccount.balance.minus(amount) },
+        });
 
-    const destinationAccountUpdated = await this.db.account.update({
-      where: { accountNumber: destinationAccountNumber },
-      data: { balance: destinationAccount.balance.plus(amount) },
-    });
+        const destinationAccountUpdated = await tx.account.update({
+          where: { accountNumber: destinationAccountNumber },
+          data: { balance: destinationAccount.balance.plus(amount) },
+        });
+
+        const transaction = await this.createTransaction(
+          {
+            amount,
+            description,
+            type: TransactionType.TRANSFER,
+            sourceAccountId: sourceAccount.id,
+            destinationAccountId: destinationAccount.id,
+          },
+          tx,
+        );
+
+        return { sourceAccountUpdated, destinationAccountUpdated, transaction };
+      });
 
     this.logger.log(AUDIT_ACTIONS.TRANSACTION_TRANSFER, {
       amount,
       sourceAccount: sourceAccountUpdated.id,
       destinationAccount: destinationAccountUpdated.id,
-    });
-
-    const transaction = await this.createTransaction({
-      amount,
-      description,
-      type: TransactionType.TRANSFER,
-      sourceAccountId: sourceAccount.id,
-      destinationAccountId: destinationAccount.id,
     });
 
     return {
@@ -257,8 +286,11 @@ export class TransactionsService {
     };
   }
 
-  private async createTransaction(payload: CreateTransaction) {
-    return await this.db.transaction.create({ data: payload });
+  private async createTransaction(
+    payload: CreateTransaction,
+    tx: TransactionClient,
+  ) {
+    return await tx.transaction.create({ data: payload });
   }
 
   private async checkOwnership(userId: string, accountUserId: string) {
