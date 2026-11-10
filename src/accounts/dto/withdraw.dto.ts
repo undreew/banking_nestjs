@@ -1,11 +1,12 @@
-import { IsNotEmpty, IsNumber, IsString } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsPositive, IsString } from 'class-validator';
 
 export class WithdrawDto {
   @IsNotEmpty()
   @IsString()
   accountNumber: string;
 
+  @IsNumber({ maxDecimalPlaces: 4 })
   @IsNotEmpty()
-  @IsNumber()
+  @IsPositive()
   amount: number;
 }

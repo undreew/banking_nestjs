@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsString } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsPositive, IsString } from 'class-validator';
 
 export class TransferDto {
   @IsString()
@@ -9,7 +9,8 @@ export class TransferDto {
   @IsNotEmpty()
   destinationAccountNumber: string;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 4 })
   @IsNotEmpty()
+  @IsPositive()
   amount: number;
 }

@@ -33,11 +33,11 @@ export class TransactionsService {
       where: { accountNumber },
     });
 
+    await this.checkOwnership(userId, account.userId);
+
     if (account.status !== AccountStatus.ACTIVE) {
       throw new ConflictException('Account is not active');
     }
-
-    await this.checkOwnership(userId, account.userId);
 
     const updatedAccount = await this.db.account.update({
       where: {
@@ -62,11 +62,11 @@ export class TransactionsService {
       where: { accountNumber },
     });
 
+    await this.checkOwnership(userId, account.userId);
+
     if (account.status !== AccountStatus.ACTIVE) {
       throw new ConflictException('Account is not active');
     }
-
-    await this.checkOwnership(userId, account.userId);
 
     if (account.balance.comparedTo(amount) < 0) {
       throw new ConflictException('Insufficient balance');
@@ -103,6 +103,13 @@ export class TransactionsService {
 
     await this.checkOwnership(userId, sourceAccount.userId);
 
+    if (
+      sourceAccount.status !== AccountStatus.ACTIVE ||
+      destinationAccount.status !== AccountStatus.ACTIVE
+    ) {
+      throw new ConflictException(`Account is not active`);
+    }
+
     if (sourceAccount.balance.comparedTo(amount) < 0) {
       throw new ConflictException('Insufficient balance');
     }
@@ -117,7 +124,7 @@ export class TransactionsService {
       data: { balance: destinationAccount.balance.plus(amount) },
     });
 
-    this.logger.log('Transfer success: ', {
+    this.logger.log(AUDIT_ACTIONS.TRANSACTION_TRANSFER, {
       amount,
       sourceAccount: sourceAccountUpdated.id,
       destinationAccount: destinationAccountUpdated.id,
@@ -127,10 +134,7 @@ export class TransactionsService {
   }
 
   private async checkOwnership(userId: string, accountUserId: string) {
-    const user = await this.db.user.findUniqueOrThrow({
-      where: { id: userId },
-    });
-    if (accountUserId !== user.id) {
+    if (accountUserId !== userId) {
       throw new UnauthorizedException(`You don't own this account`);
     }
   }
