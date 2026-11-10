@@ -9,21 +9,24 @@ import { ReverseTransactionDto } from './dto/reverse-transaction.dto.js';
 import { GetTransactionsQueryDto } from './dto/get-transactions-query.dto.js';
 import type * as Prisma from '../generated/prisma/internal/prismaNamespace.js';
 import {
+  TransactionStatus,
+  TransactionType,
+} from '../generated/prisma/enums.js';
+import {
   Decimal,
   type TransactionClient,
 } from '../generated/prisma/internal/prismaNamespace.js';
 import {
-  AccountStatus,
-  TransactionStatus,
-  TransactionType,
-} from '../generated/prisma/enums.js';
+  assertAccountActive,
+  assertOwnedBy,
+  assertSufficientBalance,
+} from '../accounts/account.rules.js';
 import {
   BadRequestException,
   ConflictException,
   Injectable,
   Logger,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
 
 interface CreateTransaction {
@@ -116,10 +119,13 @@ export class TransactionsService {
       throw new NotFoundException('Account not found');
     }
 
-    await this.checkOwnership(userId, account.userId);
+    assertOwnedBy(account, userId);
 
     return {
-      OR: [{ sourceAccountId: account.id }, { destinationAccountId: account.id }],
+      OR: [
+        { sourceAccountId: account.id },
+        { destinationAccountId: account.id },
+      ],
     };
   }
 
@@ -149,16 +155,13 @@ export class TransactionsService {
       where: { id: transaction.destinationAccountId! },
     });
 
-    if (
-      sourceAccount.status !== AccountStatus.ACTIVE ||
-      destinationAccount.status !== AccountStatus.ACTIVE
-    ) {
-      throw new ConflictException(`Account is not active`);
-    }
-
-    if (destinationAccount.balance.comparedTo(transaction.amount) < 0) {
-      throw new ConflictException('Insufficient destination account balance');
-    }
+    assertAccountActive(sourceAccount);
+    assertAccountActive(destinationAccount);
+    assertSufficientBalance(
+      destinationAccount,
+      transaction.amount,
+      'Insufficient destination account balance',
+    );
 
     const { updatedOldTransaction, newTransaction } =
       await this.db.$transaction(async (tx) => {
@@ -211,11 +214,8 @@ export class TransactionsService {
       where: { accountNumber },
     });
 
-    await this.checkOwnership(userId, account.userId);
-
-    if (account.status !== AccountStatus.ACTIVE) {
-      throw new ConflictException('Account is not active');
-    }
+    assertOwnedBy(account, userId);
+    assertAccountActive(account);
 
     const { updatedAccount, transaction } = await this.db.$transaction(
       async (tx) => {
@@ -255,15 +255,9 @@ export class TransactionsService {
       where: { accountNumber },
     });
 
-    await this.checkOwnership(userId, account.userId);
-
-    if (account.status !== AccountStatus.ACTIVE) {
-      throw new ConflictException('Account is not active');
-    }
-
-    if (account.balance.comparedTo(amount) < 0) {
-      throw new ConflictException('Insufficient balance');
-    }
+    assertOwnedBy(account, userId);
+    assertAccountActive(account);
+    assertSufficientBalance(account, amount);
 
     const { updatedAccount, transaction } = await this.db.$transaction(
       async (tx) => {
@@ -316,18 +310,10 @@ export class TransactionsService {
       where: { accountNumber: destinationAccountNumber },
     });
 
-    await this.checkOwnership(userId, sourceAccount.userId);
-
-    if (
-      sourceAccount.status !== AccountStatus.ACTIVE ||
-      destinationAccount.status !== AccountStatus.ACTIVE
-    ) {
-      throw new ConflictException(`Account is not active`);
-    }
-
-    if (sourceAccount.balance.comparedTo(amount) < 0) {
-      throw new ConflictException('Insufficient balance');
-    }
+    assertOwnedBy(sourceAccount, userId);
+    assertAccountActive(sourceAccount);
+    assertAccountActive(destinationAccount);
+    assertSufficientBalance(sourceAccount, amount);
 
     const { sourceAccountUpdated, destinationAccountUpdated, transaction } =
       await this.db.$transaction(async (tx) => {
@@ -372,11 +358,5 @@ export class TransactionsService {
     tx: TransactionClient,
   ) {
     return await tx.transaction.create({ data: payload });
-  }
-
-  private async checkOwnership(userId: string, accountUserId: string) {
-    if (accountUserId !== userId) {
-      throw new UnauthorizedException(`You don't own this account`);
-    }
   }
 }
