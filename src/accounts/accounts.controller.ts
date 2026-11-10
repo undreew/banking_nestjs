@@ -1,3 +1,6 @@
+import { DepositDto } from './dto/deposit.dto.js';
+import { TransferDto } from './dto/transfer.dto.js';
+import { WithdrawDto } from './dto/withdraw.dto.js';
 import { Role } from '../generated/prisma/enums.js';
 import { API_PATHS } from '../constants/api-paths.js';
 import { AccountsService } from './accounts.service.js';
@@ -6,10 +9,14 @@ import type { TokenClaim } from '../token/token.service.js';
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { CreateAccountDto } from './dto/create-account.dto.js';
 import { CurrentUser } from '../decorators/current-user.decorator.js';
+import { TransactionsService } from '../transactions/transactions.service.js';
 
 @Controller(API_PATHS.ACCOUNT.ROOT)
 export class AccountsController {
-  constructor(private readonly accountsService: AccountsService) {}
+  constructor(
+    private readonly accountsService: AccountsService,
+    private readonly transactionService: TransactionsService,
+  ) {}
 
   @Get()
   @Roles([Role.USER])
@@ -28,19 +35,19 @@ export class AccountsController {
 
   @Post('deposit')
   @Roles([Role.USER])
-  deposit() {
-    return this.accountsService.deposit();
+  deposit(@Body() payload: DepositDto, @CurrentUser() actor: TokenClaim) {
+    return this.transactionService.deposit(actor.sub, payload);
   }
 
   @Post('withdraw')
   @Roles([Role.USER])
-  withdraw() {
-    return this.accountsService.withdraw();
+  withdraw(@Body() payload: WithdrawDto, @CurrentUser() actor: TokenClaim) {
+    return this.transactionService.withdraw(actor.sub, payload);
   }
 
   @Post('transfer')
   @Roles([Role.USER])
-  transfer() {
-    return this.accountsService.transfer();
+  transfer(@Body() payload: TransferDto, @CurrentUser() actor: TokenClaim) {
+    return this.transactionService.transfer(actor.sub, payload);
   }
 }

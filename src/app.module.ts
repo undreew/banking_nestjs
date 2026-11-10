@@ -11,6 +11,7 @@ import { CookiesModule } from './cookies/cookies.module.js';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AccountsModule } from './accounts/accounts.module.js';
 import { LoggerMiddleware } from './middlewares/logger.middleware.js';
+import { TransactionsModule } from './transactions/transactions.module.js';
 import { GlobalExceptionFilter } from './filters/global-exceptions.filter.js';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import {
@@ -20,7 +21,6 @@ import {
   NestModule,
   ValidationPipe,
 } from '@nestjs/common';
-import { TransactionsModule } from './transactions/transactions.module.js';
 
 @Module({
   imports: [

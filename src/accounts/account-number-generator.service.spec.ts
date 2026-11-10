@@ -9,7 +9,9 @@ describe('AccountNumberGeneratorService', () => {
       providers: [AccountNumberGeneratorService],
     }).compile();
 
-    service = module.get<AccountNumberGeneratorService>(AccountNumberGeneratorService);
+    service = module.get<AccountNumberGeneratorService>(
+      AccountNumberGeneratorService,
+    );
   });
 
   it('should be defined', () => {

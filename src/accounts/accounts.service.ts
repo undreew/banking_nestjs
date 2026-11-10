@@ -35,16 +35,4 @@ export class AccountsService {
     this.logger.log(AUDIT_ACTIONS.ACCOUNT_CREATE, { id: account.id });
     return new Account(account);
   }
-
-  async deposit() {
-    return await this.transactionService.deposit();
-  }
-
-  async withdraw() {
-    return await this.transactionService.withdraw();
-  }
-
-  async transfer() {
-    return await this.transactionService.transfer();
-  }
 }
