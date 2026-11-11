@@ -13,6 +13,10 @@ import {
   TransactionType,
 } from '../generated/prisma/enums.js';
 import {
+  OptimisticLockError,
+  withOptimisticRetry,
+} from '../utils/optimistic-lock.util.js';
+import {
   Decimal,
   type TransactionClient,
 } from '../generated/prisma/internal/prismaNamespace.js';
@@ -135,67 +139,99 @@ export class TransactionsService {
   ) {
     const { reason } = payload;
 
-    const transaction = await this.db.transaction.findUniqueOrThrow({
-      where: { id: transactionId },
-    });
-
-    if (transaction.status === TransactionStatus.REVERSED) {
-      throw new BadRequestException('Invalid transaction status');
-    }
-
-    if (transaction.type !== TransactionType.TRANSFER) {
-      throw new ConflictException('Only transfers can be reversed');
-    }
-
-    const sourceAccount = await this.db.account.findUniqueOrThrow({
-      where: { id: transaction.sourceAccountId! },
-    });
-
-    const destinationAccount = await this.db.account.findUniqueOrThrow({
-      where: { id: transaction.destinationAccountId! },
-    });
-
-    assertAccountActive(sourceAccount);
-    assertAccountActive(destinationAccount);
-    assertSufficientBalance(
-      destinationAccount,
-      transaction.amount,
-      'Insufficient destination account balance',
-    );
-
-    const { updatedOldTransaction, newTransaction } =
-      await this.db.$transaction(async (tx) => {
-        await tx.account.update({
-          where: { id: sourceAccount.id },
-          data: { balance: sourceAccount.balance.add(transaction.amount) },
+    const { updatedOldTransaction, newTransaction } = await withOptimisticRetry(
+      async () => {
+        const transaction = await this.db.transaction.findUniqueOrThrow({
+          where: { id: transactionId },
         });
 
-        await tx.account.update({
-          where: { id: destinationAccount.id },
-          data: {
-            balance: destinationAccount.balance.minus(transaction.amount),
-          },
+        if (transaction.status === TransactionStatus.REVERSED) {
+          throw new BadRequestException('Invalid transaction status');
+        }
+
+        if (transaction.type !== TransactionType.TRANSFER) {
+          throw new ConflictException('Only transfers can be reversed');
+        }
+
+        const sourceAccount = await this.db.account.findUniqueOrThrow({
+          where: { id: transaction.sourceAccountId! },
         });
 
-        const updatedOldTransaction = await tx.transaction.update({
-          where: { id: transaction.id },
-          data: { status: TransactionStatus.REVERSED },
+        const destinationAccount = await this.db.account.findUniqueOrThrow({
+          where: { id: transaction.destinationAccountId! },
         });
 
-        const newTransaction = await this.createTransaction(
-          {
-            description: reason,
-            amount: transaction.amount,
-            type: TransactionType.TRANSFER,
-            reversalOfTransactionId: transaction.id,
-            sourceAccountId: transaction.destinationAccountId!,
-            destinationAccountId: transaction.sourceAccountId!,
-          },
-          tx,
+        assertAccountActive(sourceAccount);
+        assertAccountActive(destinationAccount);
+        assertSufficientBalance(
+          destinationAccount,
+          transaction.amount,
+          'Insufficient destination account balance',
         );
 
-        return { updatedOldTransaction, newTransaction };
-      });
+        return this.db.$transaction(async (tx) => {
+          const { count: transactionCount } = await tx.transaction.updateMany({
+            where: { id: transaction.id, status: TransactionStatus.COMPLETED },
+            data: { status: TransactionStatus.REVERSED },
+          });
+
+          if (transactionCount === 0) {
+            throw new OptimisticLockError(
+              'Transaction status changed concurrently',
+            );
+          }
+
+          const { count: sourceCount } = await tx.account.updateMany({
+            where: { id: sourceAccount.id, version: sourceAccount.version },
+            data: {
+              balance: sourceAccount.balance.add(transaction.amount),
+              version: { increment: 1n },
+            },
+          });
+
+          if (sourceCount === 0) {
+            throw new OptimisticLockError(
+              'Source account version changed concurrently',
+            );
+          }
+
+          const { count: destinationCount } = await tx.account.updateMany({
+            where: {
+              id: destinationAccount.id,
+              version: destinationAccount.version,
+            },
+            data: {
+              balance: destinationAccount.balance.minus(transaction.amount),
+              version: { increment: 1n },
+            },
+          });
+
+          if (destinationCount === 0) {
+            throw new OptimisticLockError(
+              'Destination account version changed concurrently',
+            );
+          }
+
+          const updatedOldTransaction = await tx.transaction.findUniqueOrThrow({
+            where: { id: transaction.id },
+          });
+
+          const newTransaction = await this.createTransaction(
+            {
+              description: reason,
+              amount: transaction.amount,
+              type: TransactionType.TRANSFER,
+              reversalOfTransactionId: transaction.id,
+              sourceAccountId: transaction.destinationAccountId!,
+              destinationAccountId: transaction.sourceAccountId!,
+            },
+            tx,
+          );
+
+          return { updatedOldTransaction, newTransaction };
+        });
+      },
+    );
 
     this.logger.log(AUDIT_ACTIONS.TRANSACTION_REVERSE, {
       id: newTransaction.id,
@@ -210,31 +246,46 @@ export class TransactionsService {
   async deposit(userId: string, payload: DepositDto) {
     const { accountNumber, amount, description } = payload;
 
-    const account = await this.db.account.findUniqueOrThrow({
-      where: { accountNumber },
-    });
-
-    assertOwnedBy(account, userId);
-    assertAccountActive(account);
-
-    const { updatedAccount, transaction } = await this.db.$transaction(
-      async (tx) => {
-        const updatedAccount = await tx.account.update({
+    const { updatedAccount, transaction } = await withOptimisticRetry(
+      async () => {
+        const account = await this.db.account.findUniqueOrThrow({
           where: { accountNumber },
-          data: { balance: account.balance.add(amount) },
         });
 
-        const transaction = await this.createTransaction(
-          {
-            amount,
-            description,
-            type: TransactionType.DEPOSIT,
-            destinationAccountId: account.id,
-          },
-          tx,
-        );
+        assertOwnedBy(account, userId);
+        assertAccountActive(account);
 
-        return { updatedAccount, transaction };
+        return this.db.$transaction(async (tx) => {
+          const { count } = await tx.account.updateMany({
+            where: { id: account.id, version: account.version },
+            data: {
+              balance: account.balance.add(amount),
+              version: { increment: 1n },
+            },
+          });
+
+          if (count === 0) {
+            throw new OptimisticLockError(
+              'Account version changed concurrently',
+            );
+          }
+
+          const updatedAccount = await tx.account.findUniqueOrThrow({
+            where: { id: account.id },
+          });
+
+          const transaction = await this.createTransaction(
+            {
+              amount,
+              description,
+              type: TransactionType.DEPOSIT,
+              destinationAccountId: account.id,
+            },
+            tx,
+          );
+
+          return { updatedAccount, transaction };
+        });
       },
     );
 
@@ -251,32 +302,47 @@ export class TransactionsService {
   async withdraw(userId: string, payload: WithdrawDto) {
     const { accountNumber, amount, description } = payload;
 
-    const account = await this.db.account.findUniqueOrThrow({
-      where: { accountNumber },
-    });
-
-    assertOwnedBy(account, userId);
-    assertAccountActive(account);
-    assertSufficientBalance(account, amount);
-
-    const { updatedAccount, transaction } = await this.db.$transaction(
-      async (tx) => {
-        const updatedAccount = await tx.account.update({
+    const { updatedAccount, transaction } = await withOptimisticRetry(
+      async () => {
+        const account = await this.db.account.findUniqueOrThrow({
           where: { accountNumber },
-          data: { balance: account.balance.minus(amount) },
         });
 
-        const transaction = await this.createTransaction(
-          {
-            amount,
-            description,
-            sourceAccountId: account.id,
-            type: TransactionType.WITHDRAWAL,
-          },
-          tx,
-        );
+        assertOwnedBy(account, userId);
+        assertAccountActive(account);
+        assertSufficientBalance(account, amount);
 
-        return { updatedAccount, transaction };
+        return this.db.$transaction(async (tx) => {
+          const { count } = await tx.account.updateMany({
+            where: { id: account.id, version: account.version },
+            data: {
+              balance: account.balance.minus(amount),
+              version: { increment: 1n },
+            },
+          });
+
+          if (count === 0) {
+            throw new OptimisticLockError(
+              'Account version changed concurrently',
+            );
+          }
+
+          const updatedAccount = await tx.account.findUniqueOrThrow({
+            where: { id: account.id },
+          });
+
+          const transaction = await this.createTransaction(
+            {
+              amount,
+              description,
+              sourceAccountId: account.id,
+              type: TransactionType.WITHDRAWAL,
+            },
+            tx,
+          );
+
+          return { updatedAccount, transaction };
+        });
       },
     );
 
@@ -302,43 +368,78 @@ export class TransactionsService {
       throw new ConflictException(`Can't transfer to the same account`);
     }
 
-    const sourceAccount = await this.db.account.findUniqueOrThrow({
-      where: { accountNumber: sourceAccountNumber },
-    });
-
-    const destinationAccount = await this.db.account.findUniqueOrThrow({
-      where: { accountNumber: destinationAccountNumber },
-    });
-
-    assertOwnedBy(sourceAccount, userId);
-    assertAccountActive(sourceAccount);
-    assertAccountActive(destinationAccount);
-    assertSufficientBalance(sourceAccount, amount);
-
     const { sourceAccountUpdated, destinationAccountUpdated, transaction } =
-      await this.db.$transaction(async (tx) => {
-        const sourceAccountUpdated = await tx.account.update({
+      await withOptimisticRetry(async () => {
+        const sourceAccount = await this.db.account.findUniqueOrThrow({
           where: { accountNumber: sourceAccountNumber },
-          data: { balance: sourceAccount.balance.minus(amount) },
         });
 
-        const destinationAccountUpdated = await tx.account.update({
+        const destinationAccount = await this.db.account.findUniqueOrThrow({
           where: { accountNumber: destinationAccountNumber },
-          data: { balance: destinationAccount.balance.plus(amount) },
         });
 
-        const transaction = await this.createTransaction(
-          {
-            amount,
-            description,
-            type: TransactionType.TRANSFER,
-            sourceAccountId: sourceAccount.id,
-            destinationAccountId: destinationAccount.id,
-          },
-          tx,
-        );
+        assertOwnedBy(sourceAccount, userId);
+        assertAccountActive(sourceAccount);
+        assertAccountActive(destinationAccount);
+        assertSufficientBalance(sourceAccount, amount);
 
-        return { sourceAccountUpdated, destinationAccountUpdated, transaction };
+        return this.db.$transaction(async (tx) => {
+          const { count: sourceCount } = await tx.account.updateMany({
+            where: { id: sourceAccount.id, version: sourceAccount.version },
+            data: {
+              balance: sourceAccount.balance.minus(amount),
+              version: { increment: 1n },
+            },
+          });
+
+          if (sourceCount === 0) {
+            throw new OptimisticLockError(
+              'Source account version changed concurrently',
+            );
+          }
+
+          const { count: destinationCount } = await tx.account.updateMany({
+            where: {
+              id: destinationAccount.id,
+              version: destinationAccount.version,
+            },
+            data: {
+              balance: destinationAccount.balance.plus(amount),
+              version: { increment: 1n },
+            },
+          });
+
+          if (destinationCount === 0) {
+            throw new OptimisticLockError(
+              'Destination account version changed concurrently',
+            );
+          }
+
+          const sourceAccountUpdated = await tx.account.findUniqueOrThrow({
+            where: { id: sourceAccount.id },
+          });
+
+          const destinationAccountUpdated = await tx.account.findUniqueOrThrow({
+            where: { id: destinationAccount.id },
+          });
+
+          const transaction = await this.createTransaction(
+            {
+              amount,
+              description,
+              type: TransactionType.TRANSFER,
+              sourceAccountId: sourceAccount.id,
+              destinationAccountId: destinationAccount.id,
+            },
+            tx,
+          );
+
+          return {
+            sourceAccountUpdated,
+            destinationAccountUpdated,
+            transaction,
+          };
+        });
       });
 
     this.logger.log(AUDIT_ACTIONS.TRANSACTION_TRANSFER, {
