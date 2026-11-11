@@ -4,8 +4,8 @@ import { Roles } from '../decorators/role.decorator.js';
 import type { TokenClaim } from '../token/token.service.js';
 import { TransactionsService } from './transactions.service.js';
 import { CurrentUser } from '../decorators/current-user.decorator.js';
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ReverseTransactionDto } from './dto/reverse-transaction.dto.js';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { GetTransactionsQueryDto } from './dto/get-transactions-query.dto.js';
 
 @Controller(API_PATHS.TRANSACTION.ROOT)

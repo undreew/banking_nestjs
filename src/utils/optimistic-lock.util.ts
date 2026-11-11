@@ -1,6 +1,14 @@
 import { ConflictException } from '@nestjs/common';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
 
 export class OptimisticLockError extends Error {}
+
+function isRetryable(error: unknown): boolean {
+  return (
+    error instanceof OptimisticLockError ||
+    (error instanceof PrismaClientKnownRequestError && error.code === 'P2034')
+  );
+}
 
 export async function withOptimisticRetry<T>(
   fn: () => Promise<T>,
@@ -10,7 +18,7 @@ export async function withOptimisticRetry<T>(
     try {
       return await fn();
     } catch (error) {
-      if (!(error instanceof OptimisticLockError)) {
+      if (!isRetryable(error)) {
         throw error;
       }
     }

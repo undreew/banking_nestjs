@@ -28,6 +28,12 @@ export function mapPrismaError(exception: PrismaClientKnownRequestError): {
         statusCode: HttpStatus.BAD_REQUEST,
         message: 'Invalid reference to a related record',
       };
+    case 'P2034':
+      return {
+        statusCode: HttpStatus.CONFLICT,
+        message:
+          'Could not complete the operation due to a concurrent update, please retry',
+      };
     default:
       logger.error(
         `Unhandled Prisma error code: ${exception.code}`,

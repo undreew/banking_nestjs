@@ -1,5 +1,9 @@
 import { Type } from 'class-transformer';
 import {
+  TransactionStatus,
+  TransactionType,
+} from '../../generated/prisma/enums.js';
+import {
   IsDateString,
   IsEnum,
   IsIn,
@@ -10,10 +14,6 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import {
-  TransactionStatus,
-  TransactionType,
-} from '../../generated/prisma/enums.js';
 
 export class GetTransactionsQueryDto {
   @IsOptional()

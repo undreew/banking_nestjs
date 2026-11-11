@@ -7,6 +7,7 @@ import { Transaction } from './entities/transaction.entity.js';
 import { Account } from '../accounts/entities/account.entity.js';
 import { ReverseTransactionDto } from './dto/reverse-transaction.dto.js';
 import { GetTransactionsQueryDto } from './dto/get-transactions-query.dto.js';
+import { updateAccountLegsInOrder } from '../utils/account-lock-order.util.js';
 import type * as Prisma from '../generated/prisma/internal/prismaNamespace.js';
 import {
   TransactionStatus,
@@ -181,36 +182,24 @@ export class TransactionsService {
             );
           }
 
-          const { count: sourceCount } = await tx.account.updateMany({
-            where: { id: sourceAccount.id, version: sourceAccount.version },
-            data: {
-              balance: sourceAccount.balance.add(transaction.amount),
-              version: { increment: 1n },
+          await updateAccountLegsInOrder(tx, [
+            {
+              account: sourceAccount,
+              label: 'Source',
+              data: {
+                balance: sourceAccount.balance.add(transaction.amount),
+                version: { increment: 1n },
+              },
             },
-          });
-
-          if (sourceCount === 0) {
-            throw new OptimisticLockError(
-              'Source account version changed concurrently',
-            );
-          }
-
-          const { count: destinationCount } = await tx.account.updateMany({
-            where: {
-              id: destinationAccount.id,
-              version: destinationAccount.version,
+            {
+              account: destinationAccount,
+              label: 'Destination',
+              data: {
+                balance: destinationAccount.balance.minus(transaction.amount),
+                version: { increment: 1n },
+              },
             },
-            data: {
-              balance: destinationAccount.balance.minus(transaction.amount),
-              version: { increment: 1n },
-            },
-          });
-
-          if (destinationCount === 0) {
-            throw new OptimisticLockError(
-              'Destination account version changed concurrently',
-            );
-          }
+          ]);
 
           const updatedOldTransaction = await tx.transaction.findUniqueOrThrow({
             where: { id: transaction.id },
@@ -384,44 +373,25 @@ export class TransactionsService {
         assertSufficientBalance(sourceAccount, amount);
 
         return this.db.$transaction(async (tx) => {
-          const { count: sourceCount } = await tx.account.updateMany({
-            where: { id: sourceAccount.id, version: sourceAccount.version },
-            data: {
-              balance: sourceAccount.balance.minus(amount),
-              version: { increment: 1n },
-            },
-          });
-
-          if (sourceCount === 0) {
-            throw new OptimisticLockError(
-              'Source account version changed concurrently',
-            );
-          }
-
-          const { count: destinationCount } = await tx.account.updateMany({
-            where: {
-              id: destinationAccount.id,
-              version: destinationAccount.version,
-            },
-            data: {
-              balance: destinationAccount.balance.plus(amount),
-              version: { increment: 1n },
-            },
-          });
-
-          if (destinationCount === 0) {
-            throw new OptimisticLockError(
-              'Destination account version changed concurrently',
-            );
-          }
-
-          const sourceAccountUpdated = await tx.account.findUniqueOrThrow({
-            where: { id: sourceAccount.id },
-          });
-
-          const destinationAccountUpdated = await tx.account.findUniqueOrThrow({
-            where: { id: destinationAccount.id },
-          });
+          const [sourceAccountUpdated, destinationAccountUpdated] =
+            await updateAccountLegsInOrder(tx, [
+              {
+                account: sourceAccount,
+                label: 'Source',
+                data: {
+                  balance: sourceAccount.balance.minus(amount),
+                  version: { increment: 1n },
+                },
+              },
+              {
+                account: destinationAccount,
+                label: 'Destination',
+                data: {
+                  balance: destinationAccount.balance.plus(amount),
+                  version: { increment: 1n },
+                },
+              },
+            ]);
 
           const transaction = await this.createTransaction(
             {

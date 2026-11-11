@@ -16,6 +16,9 @@ export class PrismaService
       password: config.getOrThrow<string>('DATABASE_PASSWORD'),
       database: config.getOrThrow<string>('DATABASE_NAME'),
       connectionLimit: 5,
+      // MariaDB's default caching_sha2_password auth needs RSA public-key exchange;
+      // this Docker-internal connection has no TLS, so retrieval must be allowed explicitly.
+      allowPublicKeyRetrieval: true,
     });
     super({ adapter });
   }
