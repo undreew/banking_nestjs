@@ -6,8 +6,9 @@ import { API_PATHS } from '../constants/api-paths.js';
 import { AccountsService } from './accounts.service.js';
 import { Roles } from '../decorators/role.decorator.js';
 import type { TokenClaim } from '../token/token.service.js';
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { CreateAccountDto } from './dto/create-account.dto.js';
+import { GetAccountsQueryDto } from './dto/get-accounts-query.dto.js';
 import { CurrentUser } from '../decorators/current-user.decorator.js';
 import { TransactionsService } from '../transactions/transactions.service.js';
 
@@ -26,8 +27,8 @@ export class AccountsController {
 
   @Get('all')
   @Roles([Role.ADMIN])
-  getAllAccounts() {
-    return this.accountsService.getAllAccounts();
+  getAllAccounts(@Query() query: GetAccountsQueryDto) {
+    return this.accountsService.getAllAccounts(query);
   }
 
   @Post()
