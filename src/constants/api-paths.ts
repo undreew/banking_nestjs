@@ -10,6 +10,7 @@ export const API_PATHS = {
   },
   ACCOUNT: {
     ROOT: '/accounts',
+    ALL: '/accounts/all',
     CREATE: '/accounts/create',
   },
   TRANSACTION: {

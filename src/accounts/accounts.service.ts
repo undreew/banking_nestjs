@@ -22,6 +22,11 @@ export class AccountsService {
     return accounts.map((account) => new Account(account));
   }
 
+  async getAllAccounts() {
+    const accounts = await this.db.account.findMany();
+    return accounts.map((account) => new Account(account));
+  }
+
   async createAccount(id: string, payload: CreateAccountDto) {
     const accountNumber = this.accountNumGenerator.generateAccountNumber();
     const account = await this.db.account.create({

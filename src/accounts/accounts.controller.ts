@@ -24,6 +24,12 @@ export class AccountsController {
     return this.accountsService.getUserAccounts(actor.sub);
   }
 
+  @Get('all')
+  @Roles([Role.ADMIN])
+  getAllAccounts() {
+    return this.accountsService.getAllAccounts();
+  }
+
   @Post()
   @Roles([Role.USER])
   createAccount(
